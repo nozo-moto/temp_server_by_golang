@@ -22,6 +22,11 @@ func hello(w http.ResponseWriter, r *http.Request) {
 }
 
 func post(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+
 	var datas Data
 	if err := json.NewDecoder(r.Body).Decode(&datas); err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
