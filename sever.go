@@ -3,64 +3,108 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
-	"fmt"
-	_ "github.com/mattn/go-sqlite3"
-	"io/ioutil"
 	"log"
 	"net/http"
-	"unsafe"
-	// "reflect"
 	"time"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type Data struct {
 	Temperature float64 `json:"temperature"`
 	Humidity    float64 `json:"humidity"`
+	Timestamp   string  `json:"timestamp"`
 }
 
-func hello(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Hello World")
+type DB struct {
+	sql.DB
 }
 
-func post(w http.ResponseWriter, r *http.Request) {
+func (db *DB) show(w http.ResponseWriter, r *http.Request) {
+	datas, err := db.query()
+	if err != nil {
+		log.Println(err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	if err = json.NewEncoder(w).Encode(datas); err != nil {
+		// too late to return errors at least
+		log.Println(err)
+	}
+}
+
+func (db *DB) post(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+
 	var datas Data
-	t, _ := ioutil.ReadAll(r.Body)
-	text := string(t)
-	v := *(*[]byte)(unsafe.Pointer(&text))
-	if err := json.Unmarshal(v, &datas); err != nil {
-		fmt.Println(err)
+	if err := json.NewDecoder(r.Body).Decode(&datas); err != nil {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
 	}
-	db(datas)
+	if err := db.insert(datas); err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
 }
 
-func db(datas Data) {
-	db, err := sql.Open("sqlite3", "sensor.sqlite3")
+func (db *DB) query() ([]Data, error) {
+	rows, err := db.Query(`
+	select temperature, humidity, timestamp from sensor order by timestamp desc limit 5
+	`)
 	if err != nil {
-		fmt.Println(err)
+		return nil, err
 	}
-	rows, _ := db.Query(" select count(*) from sqlite_master where type='table' and name= 'sensor';", 1)
 	defer rows.Close()
-	var n int
-	_ = rows.Scan(&n)
-	if n == 0 {
-		_, _ = db.Exec(
-			`create table sensor (id integer primary key, temperature REAL , humidity REAL, timestanp text)`,
-		)
+
+	var res []Data
+	for rows.Next() {
+		var data Data
+		err = rows.Scan(&data.Temperature, &data.Humidity, &data.Timestamp)
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, data)
 	}
-	// fmt.Println("insert into sensor values(" +  fmt.Sprint(datas.Temperature) + ", " +  fmt.Sprint(datas.Humidity) + ", \"" +  fmt.Sprint(time.Now()) + "\");")
-	_, err = db.Exec("insert into sensor(temperature, humidity, timestanp) values(" +  fmt.Sprint(datas.Temperature) + ", " +  fmt.Sprint(datas.Humidity) + ", \"" +  fmt.Sprint(time.Now()) + "\");")
+	return res, nil
+}
+
+func (db *DB) insert(datas Data) error {
+	_, err := db.Exec(`
+	insert into sensor(temperature, humidity, timestamp)
+	values(?, ?, ?)
+	`, datas.Temperature, datas.Humidity, time.Now().String())
 	if err != nil {
-		fmt.Println(err)
+		return err
 	}
-	db.Close()
+	return nil
+}
+
+func (db *DB) prepare() error {
+	_, err := db.Exec(`
+	create table if not exists sensor(id integer primary key, temperature REAL , humidity REAL, timestamp text)
+	`)
+	return err
 }
 
 // how to post
 //  curl http://localhost:8080/post -X POST -d "{"temperature":1.2,"humidity":3.3}"
 
 func main() {
-	http.HandleFunc("/", hello)
-	http.HandleFunc("/post", post)
+	db, err := sql.Open("sqlite3", "sensor.sqlite3")
+	if err != nil {
+		log.Fatal(err)
+	}
+	conn := &DB{*db}
+
+	if err := conn.prepare(); err != nil {
+		log.Fatal(err)
+	}
+
+	http.HandleFunc("/", conn.show)
+	http.HandleFunc("/post", conn.post)
 
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		log.Fatal("ListenAndServe: ", err)
