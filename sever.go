@@ -40,15 +40,6 @@ func db(datas Data) {
 	if err != nil {
 		fmt.Println(err)
 	}
-	rows, _ := db.Query(" select count(*) from sqlite_master where type='table' and name= 'sensor';", 1)
-	defer rows.Close()
-	var n int
-	_ = rows.Scan(&n)
-	if n == 0 {
-		_, _ = db.Exec(
-			`create table sensor (id integer primary key, temperature REAL , humidity REAL, timestanp text)`,
-		)
-	}
 	// fmt.Println("insert into sensor values(" +  fmt.Sprint(datas.Temperature) + ", " +  fmt.Sprint(datas.Humidity) + ", \"" +  fmt.Sprint(time.Now()) + "\");")
 	_, err = db.Exec("insert into sensor(temperature, humidity, timestanp) values(" + fmt.Sprint(datas.Temperature) + ", " + fmt.Sprint(datas.Humidity) + ", \"" + fmt.Sprint(time.Now()) + "\");")
 	if err != nil {
@@ -57,10 +48,26 @@ func db(datas Data) {
 	db.Close()
 }
 
+func prepare() error {
+	db, err := sql.Open("sqlite3", "sensor.sqlite3")
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	_, err = db.Exec(
+		`create table if not exists sensor(id integer primary key, temperature REAL , humidity REAL, timestanp text)`,
+	)
+	return err
+}
+
 // how to post
 //  curl http://localhost:8080/post -X POST -d "{"temperature":1.2,"humidity":3.3}"
 
 func main() {
+	if err := prepare(); err != nil {
+		log.Fatal(err)
+	}
+
 	http.HandleFunc("/", hello)
 	http.HandleFunc("/post", post)
 
