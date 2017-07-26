@@ -4,10 +4,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
-	"unsafe"
 	// "reflect"
 	"time"
 
@@ -25,11 +23,9 @@ func hello(w http.ResponseWriter, r *http.Request) {
 
 func post(w http.ResponseWriter, r *http.Request) {
 	var datas Data
-	t, _ := ioutil.ReadAll(r.Body)
-	text := string(t)
-	v := *(*[]byte)(unsafe.Pointer(&text))
-	if err := json.Unmarshal(v, &datas); err != nil {
-		fmt.Println(err)
+	if err := json.NewDecoder(r.Body).Decode(&datas); err != nil {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
 	}
 	db(datas)
 }
