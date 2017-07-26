@@ -51,7 +51,9 @@ func (db *DB) post(w http.ResponseWriter, r *http.Request) {
 }
 
 func (db *DB) query() ([]Data, error) {
-	rows, err := db.Query("select temperature, humidity, timestamp from sensor order by timestamp desc limit 5")
+	rows, err := db.Query(`
+	select temperature, humidity, timestamp from sensor order by timestamp desc limit 5
+	`)
 	if err != nil {
 		return nil, err
 	}
@@ -81,9 +83,9 @@ func (db *DB) insert(datas Data) error {
 }
 
 func (db *DB) prepare() error {
-	_, err := db.Exec(
-		`create table if not exists sensor(id integer primary key, temperature REAL , humidity REAL, timestamp text)`,
-	)
+	_, err := db.Exec(`
+	create table if not exists sensor(id integer primary key, temperature REAL , humidity REAL, timestamp text)
+	`)
 	return err
 }
 
