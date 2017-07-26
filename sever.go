@@ -15,6 +15,7 @@ import (
 type Data struct {
 	Temperature float64 `json:"temperature"`
 	Humidity    float64 `json:"humidity"`
+	Timestamp   string  `json:"timestamp"`
 }
 
 type DB struct {
@@ -22,7 +23,13 @@ type DB struct {
 }
 
 func (db *DB) show(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Hello World")
+	datas, err := db.query()
+	if err != nil {
+		log.Println(err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(datas)
 }
 
 func (db *DB) post(w http.ResponseWriter, r *http.Request) {
@@ -37,13 +44,30 @@ func (db *DB) post(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := db.insert(datas); err != nil {
-		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 }
 
+func (db *DB) query() ([]Data, error) {
+	rows, err := db.Query("select temperature, humidity, timestamp from sensor order by timestamp desc limit 5")
+	if err != nil {
+		return nil, err
+	}
+	var res []Data
+	for rows.Next() {
+		var data Data
+		err = rows.Scan(&data.Temperature, &data.Humidity, &data.Timestamp)
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, data)
+	}
+	return res, nil
+}
+
 func (db *DB) insert(datas Data) error {
-	_, err := db.Exec("insert into sensor(temperature, humidity, timestanp) values(" + fmt.Sprint(datas.Temperature) + ", " + fmt.Sprint(datas.Humidity) + ", \"" + fmt.Sprint(time.Now()) + "\");")
+	_, err := db.Exec("insert into sensor(temperature, humidity, timestamp) values(" + fmt.Sprint(datas.Temperature) + ", " + fmt.Sprint(datas.Humidity) + ", \"" + fmt.Sprint(time.Now()) + "\");")
 	if err != nil {
 		return err
 	}
@@ -52,7 +76,7 @@ func (db *DB) insert(datas Data) error {
 
 func (db *DB) prepare() error {
 	_, err := db.Exec(
-		`create table if not exists sensor(id integer primary key, temperature REAL , humidity REAL, timestanp text)`,
+		`create table if not exists sensor(id integer primary key, temperature REAL , humidity REAL, timestamp text)`,
 	)
 	return err
 }
