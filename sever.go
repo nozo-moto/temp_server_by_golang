@@ -4,13 +4,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	_ "github.com/mattn/go-sqlite3"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"unsafe"
 	// "reflect"
 	"time"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type Data struct {
@@ -48,7 +49,7 @@ func db(datas Data) {
 		)
 	}
 	// fmt.Println("insert into sensor values(" +  fmt.Sprint(datas.Temperature) + ", " +  fmt.Sprint(datas.Humidity) + ", \"" +  fmt.Sprint(time.Now()) + "\");")
-	_, err = db.Exec("insert into sensor(temperature, humidity, timestanp) values(" +  fmt.Sprint(datas.Temperature) + ", " +  fmt.Sprint(datas.Humidity) + ", \"" +  fmt.Sprint(time.Now()) + "\");")
+	_, err = db.Exec("insert into sensor(temperature, humidity, timestanp) values(" + fmt.Sprint(datas.Temperature) + ", " + fmt.Sprint(datas.Humidity) + ", \"" + fmt.Sprint(time.Now()) + "\");")
 	if err != nil {
 		fmt.Println(err)
 	}
