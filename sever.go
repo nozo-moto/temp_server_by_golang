@@ -3,10 +3,8 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
-	// "reflect"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -29,7 +27,10 @@ func (db *DB) show(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	json.NewEncoder(w).Encode(datas)
+	if err = json.NewEncoder(w).Encode(datas); err != nil {
+		// too late to return errors at least
+		log.Println(err)
+	}
 }
 
 func (db *DB) post(w http.ResponseWriter, r *http.Request) {
@@ -54,6 +55,8 @@ func (db *DB) query() ([]Data, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
+
 	var res []Data
 	for rows.Next() {
 		var data Data
@@ -67,7 +70,10 @@ func (db *DB) query() ([]Data, error) {
 }
 
 func (db *DB) insert(datas Data) error {
-	_, err := db.Exec("insert into sensor(temperature, humidity, timestamp) values(" + fmt.Sprint(datas.Temperature) + ", " + fmt.Sprint(datas.Humidity) + ", \"" + fmt.Sprint(time.Now()) + "\");")
+	_, err := db.Exec(`
+	insert into sensor(temperature, humidity, timestamp)
+	values(?, ?, ?)
+	`, datas.Temperature, datas.Humidity, time.Now().String())
 	if err != nil {
 		return err
 	}
